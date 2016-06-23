@@ -739,9 +739,12 @@ public:
     if (debug) std::cerr << "== writeNames" << std::endl;
     auto start = startSection(BinaryConsts::Section::Names);
     o << U32LEB(wasm->functions.size());
-    for (auto& curr : wasm->functions) {
-      writeInlineString(curr->name.str);
-      o << U32LEB(0); // TODO: locals
+    for (auto& function : wasm->functions) {
+      writeInlineString(function->name.str);
+      o << U32LEB(function->localNames.size());
+      for (auto& name : function->localNames) {
+        writeInlineString(name.str);
+      }
     }
     finishSection(start);
   }
@@ -1636,8 +1639,15 @@ public:
     for (size_t i = 0; i < num; i++) {
       functions[i]->name = getInlineString();
       auto numLocals = getU32LEB();
-      WASM_UNUSED(numLocals);
-      assert(numLocals == 0); // TODO
+      for (size_t j = 0; j < numLocals; j++) {
+        auto name = functions[i]->tryLocalName(j);
+        name.set(getInlineString());
+        if (!functions[i]->localIndices.count(name)) {
+          assert(j == functions[i]->localNames.size() + 1);
+          functions[i]->localIndices[name] = functions[i]->localNames.size();
+          functions[i]->localNames.push_back(name);
+        }
+      }
     }
   }
 
